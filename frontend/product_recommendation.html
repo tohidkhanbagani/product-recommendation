@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Product Recommender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-start-rgb: 243, 244, 246; /* gray-100 */
+            --background-end-rgb: 229, 231, 235; /* gray-200 */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .main-container {
+            background-image: radial-gradient(at 27% 37%, hsla(215, 98%, 61%, 0.1) 0px, transparent 50%),
+                              radial-gradient(at 97% 21%, hsla(275, 98%, 70%, 0.1) 0px, transparent 50%),
+                              radial-gradient(at 75% 88%, hsla(340, 98%, 62%, 0.1) 0px, transparent 50%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tag-input-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            background-color: #ffffff;
+            min-height: 52px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .tag-input-container:focus-within {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+        }
+        .tag {
+            display: flex;
+            align-items: center;
+            background-color: #eef2ff;
+            color: #3730a3;
+            padding: 6px 12px;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            animation: popIn 0.3s ease-out forwards;
+        }
+        .tag-remove {
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #4f46e5;
+            transition: color 0.2s;
+        }
+        .tag-remove:hover {
+            color: #be123c;
+        }
+        .tag-input {
+            flex-grow: 1;
+            border: none;
+            outline: none;
+            padding: 0;
+            min-width: 120px;
+            background-color: transparent;
+            font-size: 1rem;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .product-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            flex-shrink: 0;
+            width: 280px;
+        }
+        .product-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        .product-image-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            font-weight: 900;
+            text-align: center;
+            padding: 1rem;
+            line-height: 1.2;
+            overflow: hidden;
+            background-image: linear-gradient(135deg, var(--color-from), var(--color-to));
+        }
+
+        .message-box {
+            opacity: 0;
+            transform: translateY(-10px);
+            animation: fadeSlideIn 0.5s forwards;
+        }
+        @keyframes fadeSlideIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .scroll-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(229, 231, 235, 0.7);
+            border-radius: 9999px;
+            padding: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+            z-index: 20;
+        }
+        .scroll-arrow:hover {
+            background-color: white;
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .scroll-arrow.left { left: -24px; }
+        .scroll-arrow.right { right: -24px; }
+
+        .recommended-products-container::-webkit-scrollbar { display: none; }
+        .recommended-products-container { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .scroll-to-top-btn {
+            position: fixed;
+            bottom: -50px;
+            right: 2rem;
+            transition: bottom 0.4s ease-in-out;
+            z-index: 1000;
+        }
+        .scroll-to-top-btn.show {
+            bottom: 2rem;
+        }
+        
+        .custom-dropdown-list {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none;
+        }
+        .custom-dropdown-list.show { display: block; }
+        .custom-dropdown-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .custom-dropdown-item:hover, .custom-dropdown-item.highlighted {
+            background-color: #4f46e5;
+            color: white;
+        }
+        
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button.active {
+            color: #4f46e5;
+            border-bottom-color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="main-container min-h-screen">
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <!-- Header Section -->
+        <header class="text-center mb-16">
+            <h1 class="text-5xl md:text-7xl font-black text-gray-900 tracking-tighter mb-4">
+                AI Product Recommender
+            </h1>
+            <p class="max-w-2xl mx-auto text-lg text-gray-600">
+                Instantly test your recommendation model. Input user data and see personalized product suggestions come to life.
+            </p>
+        </header>
+
+        <!-- Main Input Section -->
+        <main class="max-w-4xl mx-auto">
+            <!-- Tabs -->
+            <div class="mb-4 border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button id="singleUserTab" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Single User</button>
+                    <button id="bulkUserTab" class="tab-button text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Bulk Simulation</button>
+                </nav>
+            </div>
+
+            <div id="input-section" class="glass-card rounded-2xl p-6 md:p-10 shadow-lg">
+                <!-- Single User Form -->
+                <div id="singleUserForm">
+                    <div class="space-y-8 mb-8">
+                        <div>
+                            <label for="userId" class="block text-sm font-medium text-gray-700 mb-2">User ID</label>
+                            <input type="text" id="userId" placeholder="e.g., user-4815162342" class="mt-1 block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base transition">
+                        </div>
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <label for="purchasedProductsInput" class="block text-sm font-medium text-gray-700 mb-2">Purchased Products (type & press Enter)</label>
+                                <div id="purchasedProductsContainer" class="tag-input-container">
+                                     <div class="relative w-full">
+                                        <input type="text" id="purchasedProductsInput" placeholder="Type a product..." class="tag-input">
+                                        <div id="productSuggestionsList" class="custom-dropdown-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="purchaseCountsInput" class="block text-sm font-medium text-gray-700 mb-2">Purchase Counts (type & press Enter)</label>
+                                <div id="purchaseCountsContainer" class="tag-input-container">
+                                    <input type="number" id="purchaseCountsInput" placeholder="e.g., 1, 5, 2" min="1" class="tag-input">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4 border-t border-gray-200">
+                        <button id="getRecommendationsBtn" class="w-full sm:w-auto flex items-center justify-center px-8 py-3 text-base font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            <span id="buttonText">Get Recommendations</span>
+                            <div id="loadingSpinner" class="spinner ml-3 hidden"></div>
+                        </button>
+                        <button id="clearInputsBtn" class="w-full sm:w-auto px-8 py-3 text-base font-semibold rounded-xl text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300">
+                            Clear Inputs
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bulk User Form -->
+                <div id="bulkUserForm" class="hidden">
+                     <div class="space-y-8 mb-8">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <div>
+                                <label for="bulkN" class="block text-sm font-medium text-gray-700 mb-2">Recommendations per User (N)</label>
+                                <input type="number" id="bulkN" value="10" class="mt-1 block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base transition">
+                            </div>
+                            <div>
+                                <label for="bulkEntries" class="block text-sm font-medium text-gray-700 mb-2">Number of Simulated Users</label>
+                                <input type="number" id="bulkEntries" value="5" class="mt-1 block w-full px-4 py-3 bg-white border border-gray-300 rounded-xl shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-base transition">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4 border-t border-gray-200">
+                        <button id="getBulkRecommendationsBtn" class="w-full sm:w-auto flex items-center justify-center px-8 py-3 text-base font-semibold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            <span id="bulkButtonText">Run Bulk Simulation</span>
+                            <div id="bulkLoadingSpinner" class="spinner ml-3 hidden"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Message Area -->
+        <div id="messageArea" class="text-center text-sm my-8 min-h-[40px] max-w-4xl mx-auto"></div>
+        
+        <!-- Recent Queries Section -->
+        <div id="historySection" class="hidden max-w-4xl mx-auto mt-16">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center tracking-tight">Recent Queries</h2>
+            <div id="historyGrid" class="space-y-3">
+                <!-- History items will be injected here -->
+            </div>
+        </div>
+
+        <!-- Recommendations Section -->
+        <div id="recommendationsSection" class="hidden mt-16">
+            <div class="text-center mb-10">
+                <h2 id="recommendationTitle" class="text-4xl font-bold text-gray-800 tracking-tight">For You</h2>
+                <p id="recommendationSubtitle" class="mt-2 text-lg text-gray-600">Based on your input, here's what we think you'll like.</p>
+            </div>
+            <!-- Container for single user results -->
+            <div id="singleResultContainer">
+                <div id="singleResultSummary" class="mb-8"></div>
+                <div class="relative">
+                    <div id="recommendedProductsGrid" class="flex overflow-x-auto gap-8 px-4 pb-8 recommended-products-container scroll-smooth"></div>
+                    <button id="scrollLeftBtn" class="scroll-arrow left hidden">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                    </button>
+                    <button id="scrollRightBtn" class="scroll-arrow right hidden">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                    </button>
+                </div>
+            </div>
+             <!-- Container for bulk results -->
+            <div id="bulkResultsContainer" class="space-y-12"></div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 mt-24">
+        <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-sm text-gray-500">&copy; 2024 AI Recommender. A demonstration of high-quality UI/UX.</p>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top Button -->
+    <button id="scrollToTopBtn" class="scroll-to-top-btn p-3 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 transition transform hover:scale-110">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+    </button>
+
+    <script>
+        // All element references
+        const elements = {
+            userIdInput: document.getElementById('userId'),
+            purchasedProductsInput: document.getElementById('purchasedProductsInput'),
+            purchasedProductsContainer: document.getElementById('purchasedProductsContainer'),
+            productSuggestionsList: document.getElementById('productSuggestionsList'),
+            purchaseCountsInput: document.getElementById('purchaseCountsInput'),
+            purchaseCountsContainer: document.getElementById('purchaseCountsContainer'),
+            getRecommendationsBtn: document.getElementById('getRecommendationsBtn'),
+            clearInputsBtn: document.getElementById('clearInputsBtn'),
+            messageArea: document.getElementById('messageArea'),
+            recommendationsSection: document.getElementById('recommendationsSection'),
+            recommendationTitle: document.getElementById('recommendationTitle'),
+            recommendationSubtitle: document.getElementById('recommendationSubtitle'),
+            singleResultContainer: document.getElementById('singleResultContainer'),
+            singleResultSummary: document.getElementById('singleResultSummary'),
+            recommendedProductsGrid: document.getElementById('recommendedProductsGrid'),
+            bulkResultsContainer: document.getElementById('bulkResultsContainer'),
+            historySection: document.getElementById('historySection'),
+            historyGrid: document.getElementById('historyGrid'),
+            loadingSpinner: document.getElementById('loadingSpinner'),
+            buttonText: document.getElementById('buttonText'),
+            scrollLeftBtn: document.getElementById('scrollLeftBtn'),
+            scrollRightBtn: document.getElementById('scrollRightBtn'),
+            scrollToTopBtn: document.getElementById('scrollToTopBtn'),
+            // Tabs and forms
+            singleUserTab: document.getElementById('singleUserTab'),
+            bulkUserTab: document.getElementById('bulkUserTab'),
+            singleUserForm: document.getElementById('singleUserForm'),
+            bulkUserForm: document.getElementById('bulkUserForm'),
+            // Bulk inputs and button
+            bulkNInput: document.getElementById('bulkN'),
+            bulkEntriesInput: document.getElementById('bulkEntries'),
+            getBulkRecommendationsBtn: document.getElementById('getBulkRecommendationsBtn'),
+            bulkButtonText: document.getElementById('bulkButtonText'),
+            bulkLoadingSpinner: document.getElementById('bulkLoadingSpinner'),
+        };
+
+        let purchasedProducts = [];
+        let purchaseCounts = [];
+        let allProductOptions = [];
+        let highlightedSuggestionIndex = -1;
+        let queryHistory = [];
+        
+        // --- CONFIG ---
+        const BACKEND_URL = "http://127.0.0.1:8000";
+
+        // --- MOCK/HELPER FUNCTIONS ---
+        function generateProductColors(name) {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const h = hash % 360;
+            return {
+                from: `hsl(${h}, 80%, 85%)`,
+                to: `hsl(${(h + 40) % 360}, 90%, 90%)`,
+                text: `hsl(${h}, 60%, 30%)`,
+            };
+        }
+
+        // --- UI UPDATE FUNCTIONS ---
+        function showMessage(message, type = 'info') {
+            messageArea.innerHTML = '';
+            const msgDiv = document.createElement('div');
+            const iconMap = {
+                success: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+                error: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+                info: `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
+            };
+            const colorMap = {
+                success: 'bg-green-100 text-green-800 border-green-300',
+                error: 'bg-red-100 text-red-800 border-red-300',
+                info: 'bg-blue-100 text-blue-800 border-blue-300',
+            };
+
+            msgDiv.className = `message-box inline-flex items-center justify-center gap-2 px-4 py-2 font-medium rounded-lg border ${colorMap[type]}`;
+            msgDiv.innerHTML = `${iconMap[type]}<span>${message}</span>`;
+            messageArea.appendChild(msgDiv);
+
+            setTimeout(() => {
+                msgDiv.style.opacity = '0';
+                msgDiv.addEventListener('transitionend', () => msgDiv.remove(), { once: true });
+            }, 5000);
+        }
+
+        function createTag(text, container, onRemove) {
+            const tagDiv = document.createElement('div');
+            tagDiv.className = 'tag';
+            tagDiv.innerHTML = `<span>${text}</span><span class="tag-remove">&times;</span>`;
+            tagDiv.querySelector('.tag-remove').addEventListener('click', () => {
+                onRemove();
+                tagDiv.remove();
+            });
+            container.insertBefore(tagDiv, container.querySelector('input, .relative'));
+        }
+
+        function renderTags() {
+            elements.purchasedProductsContainer.querySelectorAll('.tag').forEach(t => t.remove());
+            elements.purchaseCountsContainer.querySelectorAll('.tag').forEach(t => t.remove());
+
+            purchasedProducts.forEach((product, index) => {
+                createTag(product, elements.purchasedProductsContainer, () => {
+                    purchasedProducts.splice(index, 1);
+                    renderTags();
+                });
+            });
+
+            purchaseCounts.forEach((count, index) => {
+                createTag(count, elements.purchaseCountsContainer, () => {
+                    purchaseCounts.splice(index, 1);
+                    renderTags();
+                });
+            });
+        }
+
+        function addProductTag(productName) {
+            const trimmedName = productName.trim();
+            if (trimmedName) {
+                purchasedProducts.push(trimmedName);
+                renderTags();
+                elements.productSuggestionsList.classList.remove('show');
+                highlightedSuggestionIndex = -1;
+            }
+            elements.purchasedProductsInput.value = '';
+        }
+
+        function addPurchaseCountTag(count) {
+            const num = parseInt(count.trim(), 10);
+            if (!isNaN(num) && num > 0) {
+                purchaseCounts.push(num);
+                renderTags();
+            } else {
+                showMessage('Please enter a valid positive number.', 'error');
+            }
+            elements.purchaseCountsInput.value = '';
+        }
+
+        function displayRecommendations(responseData) {
+            elements.singleResultContainer.style.display = 'block';
+            elements.bulkResultsContainer.style.display = 'none';
+            elements.recommendedProductsGrid.innerHTML = '';
+            elements.singleResultSummary.innerHTML = '';
+
+            const productList = responseData.recommended_products;
+            const priceList = responseData.product_prices;
+            const confidenceList = responseData.confidence_scores;
+
+            if (!productList || productList.length === 0) {
+                elements.recommendedProductsGrid.innerHTML = `<p class="w-full text-center text-gray-500 py-8">No recommendations found. Try different inputs!</p>`;
+            } else {
+                 // --- Single User Summary ---
+                const avgPrice = priceList.reduce((a, b) => a + b, 0) / priceList.length;
+                const avgConfidence = confidenceList.reduce((a, b) => a + b, 0) / confidenceList.length;
+
+                let summaryHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm rounded-xl p-6 border shadow-md mb-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Recommendation Analysis</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div><p class="text-2xl font-bold text-indigo-600">${productList.length}</p><p class="text-sm text-gray-500">Products Recommended</p></div>
+                            <div><p class="text-2xl font-bold text-indigo-600">$${avgPrice.toFixed(2)}</p><p class="text-sm text-gray-500">Average Price</p></div>
+                            <div><p class="text-2xl font-bold text-indigo-600">${(avgConfidence * 100).toFixed(0)}%</p><p class="text-sm text-gray-500">Avg. Confidence</p></div>
+                        </div>
+                    </div>`;
+                elements.singleResultSummary.innerHTML = summaryHTML;
+
+
+                productList.forEach((productName, index) => {
+                    const price = priceList[index] ? priceList[index].toFixed(2) : (Math.random() * 150 + 20).toFixed(2);
+                    const confidence = confidenceList[index] || 0;
+                    const rating = (Math.random() * 1.5 + 3.5).toFixed(1);
+                    const reviews = Math.floor(Math.random() * 1000) + 50;
+                    const colors = generateProductColors(productName);
+
+                    const card = document.createElement('div');
+                    card.className = 'product-card bg-white rounded-2xl shadow-md overflow-hidden flex flex-col';
+                    card.style.animation = `popIn 0.5s ease-out ${index * 0.1}s both`;
+                    card.innerHTML = `
+                        <div class="product-image-placeholder h-40" style="--color-from: ${colors.from}; --color-to: ${colors.to}; color: ${colors.text};">
+                            <span>${productName.split(' ')[0]}</span>
+                        </div>
+                        <div class="p-5 flex flex-col flex-grow">
+                            <div class="flex justify-between items-start gap-2">
+                                <h3 class="text-lg font-semibold text-gray-800 truncate flex-1">${productName}</h3>
+                                <span class="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-1 rounded-full whitespace-nowrap">${(confidence * 100).toFixed(0)}% Match</span>
+                            </div>
+                            <p class="text-2xl font-bold text-gray-900 mt-1 mb-3">$${price}</p>
+                            <div class="flex items-center text-sm text-yellow-500 mb-4">
+                                <span>${'★'.repeat(Math.round(rating))}${'☆'.repeat(5 - Math.round(rating))}</span>
+                                <span class="text-gray-500 ml-2">(${reviews} reviews)</span>
+                            </div>
+                            <button class="mt-auto w-full py-2 px-4 rounded-lg bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                Add to Cart
+                            </button>
+                        </div>
+                    `;
+                    elements.recommendedProductsGrid.appendChild(card);
+                });
+            }
+            
+            elements.recommendationTitle.textContent = "For You";
+            elements.recommendationSubtitle.textContent = "Based on your input, here's what we think you'll like.";
+            elements.recommendationsSection.classList.remove('hidden');
+            if (productList && productList.length > 0) {
+                 elements.recommendationsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            updateScrollArrowsVisibility(elements.recommendedProductsGrid, elements.scrollLeftBtn, elements.scrollRightBtn);
+        }
+
+        function displayBulkRecommendations(responseData) {
+            elements.singleResultContainer.style.display = 'none';
+            elements.bulkResultsContainer.style.display = 'block';
+            elements.bulkResultsContainer.innerHTML = '';
+            
+            const userIds = responseData.id;
+            const recommendationsList = responseData.recommendations;
+            const pricesList = responseData.prices;
+
+            if (!userIds || userIds.length === 0) {
+                 elements.bulkResultsContainer.innerHTML = `<p class="w-full text-center text-gray-500 py-8">No bulk recommendations generated.</p>`;
+            } else {
+                // --- Bulk Summary ---
+                const allProducts = recommendationsList.flat();
+                const productCounts = allProducts.reduce((acc, product) => {
+                    acc[product] = (acc[product] || 0) + 1;
+                    return acc;
+                }, {});
+                const topProducts = Object.entries(productCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+                let summaryHTML = `
+                    <div class="bg-white/80 backdrop-blur-sm rounded-xl p-6 border shadow-md mb-12">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">Simulation Summary</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            <div><p class="text-2xl font-bold text-indigo-600">${userIds.length}</p><p class="text-sm text-gray-500">Users Simulated</p></div>
+                            <div><p class="text-2xl font-bold text-indigo-600">${allProducts.length}</p><p class="text-sm text-gray-500">Total Recs</p></div>
+                            <div class="col-span-2 md:col-span-2"><p class="text-base font-semibold text-gray-700 mb-2">Top Recommended Products</p>
+                                <div class="flex flex-wrap justify-center gap-2">`;
+                topProducts.forEach(([name, count]) => {
+                    summaryHTML += `<span class="text-xs font-medium bg-gray-200 text-gray-700 px-2 py-1 rounded-full">${name} (${count})</span>`;
+                });
+                summaryHTML += `</div></div></div></div>`;
+                elements.bulkResultsContainer.innerHTML += summaryHTML;
+
+                // --- User Tabs ---
+                let tabsHTML = '<div class="mb-4 border-b border-gray-200"><nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Bulk Users">';
+                userIds.forEach((userId, index) => {
+                    tabsHTML += `<button data-tab="${index}" class="bulk-tab-button ${index === 0 ? 'text-indigo-600 border-indigo-600' : 'text-gray-500 hover:text-gray-700 border-transparent'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">${userId}</button>`;
+                });
+                tabsHTML += '</nav></div>';
+                elements.bulkResultsContainer.innerHTML += tabsHTML;
+
+                // --- User Content ---
+                let contentHTML = '<div>';
+                userIds.forEach((userId, index) => {
+                    const userRecommendations = recommendationsList[index];
+                    const userPrices = pricesList[index];
+                    
+                    contentHTML += `<div id="bulk-content-${index}" class="bulk-tab-content ${index !== 0 ? 'hidden' : ''}">
+                                        <div class="relative">
+                                            <div id="bulk-grid-${index}" class="flex overflow-x-auto gap-8 px-4 pb-8 recommended-products-container scroll-smooth">`;
+                    
+                    userRecommendations.forEach((productName, productIndex) => {
+                        const price = userPrices[productIndex] ? userPrices[productIndex].toFixed(2) : 'N/A';
+                        const colors = generateProductColors(productName);
+                        contentHTML += `
+                            <div class="product-card bg-white rounded-2xl shadow-md overflow-hidden flex flex-col" style="animation: popIn 0.5s ease-out ${productIndex * 0.05}s both">
+                                <div class="product-image-placeholder h-40" style="--color-from: ${colors.from}; --color-to: ${colors.to}; color: ${colors.text};">
+                                    <span>${productName.split(' ')[0]}</span>
+                                </div>
+                                <div class="p-5 flex flex-col flex-grow">
+                                    <h3 class="text-lg font-semibold text-gray-800 truncate">${productName}</h3>
+                                    <p class="text-2xl font-bold text-gray-900 mt-1 mb-3">$${price}</p>
+                                    <button class="mt-auto w-full py-2 px-4 rounded-lg bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100 transition">Add to Cart</button>
+                                </div>
+                            </div>`;
+                    });
+
+                    contentHTML += `</div>
+                                <button id="bulk-left-${index}" class="scroll-arrow left hidden"><svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg></button>
+                                <button id="bulk-right-${index}" class="scroll-arrow right hidden"><svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg></button>
+                            </div></div>`;
+                });
+                contentHTML += '</div>';
+                elements.bulkResultsContainer.innerHTML += contentHTML;
+
+                // Add event listeners for new elements
+                userIds.forEach((_, index) => {
+                    const grid = document.getElementById(`bulk-grid-${index}`);
+                    const leftBtn = document.getElementById(`bulk-left-${index}`);
+                    const rightBtn = document.getElementById(`bulk-right-${index}`);
+                    
+                    leftBtn.addEventListener('click', () => grid.scrollBy({ left: -300, behavior: 'smooth' }));
+                    rightBtn.addEventListener('click', () => grid.scrollBy({ left: 300, behavior: 'smooth' }));
+                    grid.addEventListener('scroll', () => updateScrollArrowsVisibility(grid, leftBtn, rightBtn));
+                    window.addEventListener('resize', () => updateScrollArrowsVisibility(grid, leftBtn, rightBtn));
+                    updateScrollArrowsVisibility(grid, leftBtn, rightBtn);
+                });
+
+                document.querySelectorAll('.bulk-tab-button').forEach(button => {
+                    button.addEventListener('click', () => {
+                        document.querySelectorAll('.bulk-tab-button').forEach(btn => {
+                            btn.classList.remove('text-indigo-600', 'border-indigo-600');
+                            btn.classList.add('text-gray-500', 'hover:text-gray-700', 'border-transparent');
+                        });
+                        button.classList.add('text-indigo-600', 'border-indigo-600');
+                        button.classList.remove('text-gray-500', 'hover:text-gray-700', 'border-transparent');
+                        
+                        document.querySelectorAll('.bulk-tab-content').forEach(content => content.classList.add('hidden'));
+                        document.getElementById(`bulk-content-${button.dataset.tab}`).classList.remove('hidden');
+                    });
+                });
+            }
+
+            elements.recommendationTitle.textContent = "Bulk Simulation Results";
+            elements.recommendationSubtitle.textContent = `Generated recommendations for ${userIds.length} simulated users.`;
+            elements.recommendationsSection.classList.remove('hidden');
+            elements.recommendationsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function updateHistory(query) {
+            queryHistory.unshift(query);
+            if(queryHistory.length > 5) {
+                queryHistory.pop();
+            }
+            renderHistory();
+        }
+        
+        function renderHistory() {
+            elements.historyGrid.innerHTML = '';
+            if (queryHistory.length === 0) {
+                elements.historySection.classList.add('hidden');
+                return;
+            }
+            
+            elements.historySection.classList.remove('hidden');
+            queryHistory.forEach(item => {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'bg-white p-4 rounded-lg shadow-sm border flex justify-between items-center transition hover:shadow-md hover:border-indigo-200 cursor-pointer';
+                historyItem.innerHTML = `
+                    <div>
+                        <p class="font-semibold text-gray-700">User: <span class="font-normal text-indigo-600">${item.userId}</span></p>
+                        <p class="text-sm text-gray-500 truncate">Products: ${item.products.join(', ')}</p>
+                    </div>
+                    <button class="text-sm font-semibold text-indigo-600 hover:text-indigo-800">Re-run</button>
+                `;
+                historyItem.querySelector('button').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    rerunQuery(item);
+                });
+                elements.historyGrid.appendChild(historyItem);
+            });
+        }
+        
+        function rerunQuery(query) {
+            elements.singleUserTab.click(); // Switch to single user tab
+            elements.userIdInput.value = query.userId;
+            purchasedProducts = [...query.products];
+            purchaseCounts = [...query.counts];
+            renderTags();
+            elements.getRecommendationsBtn.click();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateScrollArrowsVisibility(grid, leftBtn, rightBtn) {
+            if (!grid || !leftBtn || !rightBtn) return;
+            const hasOverflow = grid.scrollWidth > grid.clientWidth;
+            leftBtn.classList.toggle('hidden', !hasOverflow || grid.scrollLeft <= 0);
+            rightBtn.classList.toggle('hidden', !hasOverflow || grid.scrollLeft >= grid.scrollWidth - grid.clientWidth - 1);
+        }
+
+        function setLoadingState(isLoading, isBulk = false) {
+            const spinner = isBulk ? elements.bulkLoadingSpinner : elements.loadingSpinner;
+            const buttonText = isBulk ? elements.bulkButtonText : elements.buttonText;
+            const button = isBulk ? elements.getBulkRecommendationsBtn : elements.getRecommendationsBtn;
+            
+            spinner.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Fetching...' : (isBulk ? 'Run Bulk Simulation' : 'Get Recommendations');
+            button.disabled = isLoading;
+            if (!isBulk) elements.clearInputsBtn.disabled = isLoading;
+        }
+
+        // --- API & DATA LOGIC ---
+        async function loadProductSuggestions() {
+            try {
+                const res = await fetch(`${BACKEND_URL}/products`);
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                allProductOptions = await res.json();
+            } catch (err) {
+                console.error("Error loading product suggestions:", err);
+                showMessage('Could not load product list from backend.', 'error');
+            }
+        }
+
+        async function fetchRecommendations(userId, products, counts) {
+            const payload = { id: [userId], products: products, counts: counts };
+            try {
+                const response = await fetch(`${BACKEND_URL}/prediction/product-recommender`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (errorData.detail && Array.isArray(errorData.detail)) {
+                        const errorMsg = errorData.detail.map(err => err.msg).join(', ');
+                        throw new Error(errorMsg);
+                    }
+                    throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+                }
+                const recommendedData = await response.json();
+                updateHistory({userId, products, counts});
+                return recommendedData;
+            } catch (error) {
+                console.error('Error in fetchRecommendations:', error);
+                throw error;
+            }
+        }
+        
+        async function fetchBulkRecommendations(n, entries) {
+            const payload = { N: n, entries: entries };
+            try {
+                const response = await fetch(`${BACKEND_URL}/predict/product-recommendation-bulk`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error in fetchBulkRecommendations:', error);
+                throw error;
+            }
+        }
+
+        // --- EVENT HANDLERS ---
+        elements.getRecommendationsBtn.addEventListener('click', async () => {
+            const userId = elements.userIdInput.value.trim();
+            if (!userId || purchasedProducts.length === 0 || purchaseCounts.length === 0 || purchasedProducts.length !== purchaseCounts.length) {
+                showMessage('Please fill all fields and ensure products and counts match.', 'error');
+                return;
+            }
+
+            setLoadingState(true);
+            messageArea.innerHTML = '';
+            elements.recommendationsSection.classList.add('hidden');
+
+            try {
+                const recommendations = await fetchRecommendations(userId, purchasedProducts, purchaseCounts);
+                displayRecommendations(recommendations);
+                showMessage('Recommendations loaded successfully!', 'success');
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                setLoadingState(false);
+            }
+        });
+        
+        elements.getBulkRecommendationsBtn.addEventListener('click', async () => {
+            const n = parseInt(elements.bulkNInput.value, 10);
+            const entries = parseInt(elements.bulkEntriesInput.value, 10);
+
+            if (isNaN(n) || isNaN(entries) || n <= 0 || entries <= 0) {
+                showMessage('Please enter valid positive numbers for both fields.', 'error');
+                return;
+            }
+            
+            setLoadingState(true, true);
+            messageArea.innerHTML = '';
+            elements.recommendationsSection.classList.add('hidden');
+            
+            try {
+                const recommendations = await fetchBulkRecommendations(n, entries);
+                displayBulkRecommendations(recommendations);
+                showMessage('Bulk simulation completed successfully!', 'success');
+            } catch (error) {
+                showMessage(error.message, 'error');
+            } finally {
+                setLoadingState(false, true);
+            }
+        });
+
+        elements.clearInputsBtn.addEventListener('click', () => {
+            elements.userIdInput.value = '';
+            purchasedProducts = [];
+            purchaseCounts = [];
+            renderTags();
+            elements.recommendationsSection.classList.add('hidden');
+            messageArea.innerHTML = '';
+            showMessage('Inputs cleared.', 'info');
+        });
+
+        elements.purchasedProductsInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (highlightedSuggestionIndex > -1) {
+                    const items = Array.from(elements.productSuggestionsList.children);
+                    addProductTag(items[highlightedSuggestionIndex].dataset.value);
+                } else {
+                    addProductTag(elements.purchasedProductsInput.value);
+                }
+            }
+        });
+
+        elements.purchaseCountsInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addPurchaseCountTag(elements.purchaseCountsInput.value);
+            }
+        });
+        
+        function showAllSuggestions() {
+            const query = elements.purchasedProductsInput.value.toLowerCase();
+            elements.productSuggestionsList.innerHTML = '';
+            highlightedSuggestionIndex = -1;
+            
+            const filtered = allProductOptions.filter(p => p.toLowerCase().includes(query)).slice(0,15);
+
+            if (filtered.length > 0) {
+                filtered.forEach(product => {
+                    const item = document.createElement('div');
+                    item.className = 'custom-dropdown-item';
+                    item.textContent = product;
+                    item.dataset.value = product;
+                    item.addEventListener('click', () => addProductTag(product));
+                    elements.productSuggestionsList.appendChild(item);
+                });
+                elements.productSuggestionsList.classList.add('show');
+            } else {
+                elements.productSuggestionsList.classList.remove('show');
+            }
+        }
+
+        // Autocomplete/Suggestion Logic
+        elements.purchasedProductsInput.addEventListener('input', showAllSuggestions);
+        elements.purchasedProductsInput.addEventListener('focus', showAllSuggestions);
+        
+        // Keyboard navigation for suggestions
+        elements.purchasedProductsInput.addEventListener('keydown', e => {
+            const items = Array.from(elements.productSuggestionsList.children);
+            if (items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightedSuggestionIndex = (highlightedSuggestionIndex + 1) % items.length;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightedSuggestionIndex = (highlightedSuggestionIndex - 1 + items.length) % items.length;
+            } else { return; }
+            
+            items.forEach((item, index) => item.classList.toggle('highlighted', index === highlightedSuggestionIndex));
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!elements.purchasedProductsContainer.contains(e.target)) {
+                elements.productSuggestionsList.classList.remove('show');
+            }
+        });
+
+        // Scroll functionality
+        elements.scrollLeftBtn.addEventListener('click', () => elements.recommendedProductsGrid.scrollBy({ left: -300, behavior: 'smooth' }));
+        elements.scrollRightBtn.addEventListener('click', () => elements.recommendedProductsGrid.scrollBy({ left: 300, behavior: 'smooth' }));
+        elements.recommendedProductsGrid.addEventListener('scroll', () => updateScrollArrowsVisibility(elements.recommendedProductsGrid, elements.scrollLeftBtn, elements.scrollRightBtn));
+        window.addEventListener('resize', () => updateScrollArrowsVisibility(elements.recommendedProductsGrid, elements.scrollLeftBtn, elements.scrollRightBtn));
+        
+        // Scroll to top button
+        window.addEventListener('scroll', () => {
+            elements.scrollToTopBtn.classList.toggle('show', window.scrollY > 300);
+        });
+        elements.scrollToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+        // Tab switching logic
+        elements.singleUserTab.addEventListener('click', () => {
+            elements.singleUserTab.classList.add('active');
+            elements.bulkUserTab.classList.remove('active');
+            elements.singleUserForm.style.display = 'block';
+            elements.bulkUserForm.style.display = 'none';
+        });
+        
+        elements.bulkUserTab.addEventListener('click', () => {
+            elements.bulkUserTab.classList.add('active');
+            elements.singleUserTab.classList.remove('active');
+            elements.bulkUserForm.style.display = 'block';
+            elements.singleUserForm.style.display = 'none';
+        });
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProductSuggestions();
+            renderTags();
+            renderHistory();
+        });
+    </script>
+</body>
+</html>
